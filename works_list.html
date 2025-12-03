@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>公開作品一覧</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 20px auto; line-height: 1.6; }
+        h1 { border-bottom: 2px solid #3498db; padding-bottom: 10px; color: #3498db; }
+        .work-item {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .work-item:hover {
+            background-color: #f0f8ff;
+        }
+        .work-title {
+            font-size: 1.5em;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        .work-meta {
+            font-size: 0.9em;
+            color: #7f8c8d;
+        }
+        .work-meta span {
+            margin-right: 15px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎨 公開作品履歴</h1>
+    <div id="loading">作品リストを読み込み中...</div>
+    <div id="works_list">
+        </div>
+    
+    <p style="margin-top: 30px;"><a href="/">[編集ページに戻る]</a></p>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loadingDiv = document.getElementById('loading');
+            const worksListDiv = document.getElementById('works_list');
+
+            fetch('/api/published-works') 
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(works => {
+                    loadingDiv.style.display = 'none';
+                    
+                    if (works.length === 0) {
+                        worksListDiv.innerHTML = '<p>まだ公開された作品はありません。</p>';
+                        return;
+                    }
+
+                    works.forEach(work => {
+                        const item = document.createElement('div');
+                        item.className = 'work-item';
+                        
+                        const date = new Date(work.published_at);
+                        const formattedDate = date.toLocaleDateString('ja-JP') + ' ' + date.toLocaleTimeString('ja-JP');
+
+                        // work.room がない場合に備えて 'Unknown' を表示するよう修正済み
+                        const roomDisplay = work.room ? work.room.charAt(0).toUpperCase() + work.room.slice(1) : 'Unknown';
+
+                        item.innerHTML = `
+                            <div class="work-title">${work.title}</div>
+                            <div class="work-meta">
+                                <span>ルーム: ${roomDisplay}</span>
+                                <span>公開日: ${formattedDate}</span>
+                                <span>コメント: ${work.comments ? work.comments.length : 0}件</span>
+                            </div>
+                        `;
+                        
+                        // クリックしたら詳細ページに遷移 (IDをURLパラメータとして渡す)
+                        item.addEventListener('click', () => {
+                            window.location.href = `/published-detail?id=${work.id}`;
+                        });
+                        
+                        worksListDiv.appendChild(item);
+                    });
+                })
+                .catch(error => {
+                    loadingDiv.textContent = `作品リストの読み込みに失敗しました。サーバーが起動しているか確認してください。 (${error.message})`;
+                    console.error('Error fetching published works list:', error);
+                });
+        });
+    </script>
+</body>
+</html>

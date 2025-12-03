@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>公開作品一覧</title>
+    <style>
+        /* --- 全体のリセットと基本設定 --- */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        h1 {
+            color: #4a69bd;
+            border-bottom: 2px solid #4a69bd;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #e55039;
+            text-decoration: none;
+            font-weight: bold;
+            padding: 8px 15px;
+            border: 1px solid #e55039;
+            border-radius: 4px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .back-link:hover {
+            background-color: #e55039;
+            color: white;
+        }
+
+        /* --- 作品一覧とカードのスタイル --- */
+        .work-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .work-card {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            transition: transform 0.2s;
+            overflow: hidden;
+        }
+        .work-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        .work-card h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 1px dotted #ccc;
+            padding-bottom: 5px;
+            word-break: break-all;
+        }
+        .work-card p {
+            margin: 5px 0;
+            font-size: 0.9em;
+        }
+
+        /* --- 作品コンテンツのスタイル --- */
+        .work-content {
+            margin-top: 15px;
+            border: 1px solid #eee;
+            background-color: #fafafa;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 250px; 
+            overflow-y: auto; 
+        }
+        .work-content img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            border: 1px solid #ccc;
+        }
+        .work-content pre {
+            white-space: pre-wrap; 
+            word-break: break-all;
+            margin: 0;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎨 公開作品一覧</h1>
+    <a href="/" class="back-link">← メインエディタに戻る</a>
+    <div id="workList" class="work-list">
+        <p>作品データを読み込み中です...</p>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            fetch('/api/works')
+                .then(res => {
+                    if (!res.ok) {
+                        throw new Error(`APIアクセス失敗: ステータス ${res.status}`);
+                    }
+                    return res.json();
+                })
+                .then(works => {
+                    const workListDiv = document.getElementById('workList');
+                    workListDiv.innerHTML = ''; 
+
+                    if (!works || works.length === 0) {
+                        workListDiv.innerHTML = '<p>まだ公開された作品はありません。</p>';
+                        return;
+                    }
+
+                    // IDが大きいもの (新しいもの) から表示
+                    works.sort((a, b) => b.id - a.id).forEach(work => {
+                        const card = document.createElement('div');
+                        card.className = 'work-card';
+
+                        let contentHtml = '';
+                        // content_type に応じて表示方法を切り替え
+                        if (work.content_type === 'image') {
+                            // 描画作品（画像）の場合
+                            contentHtml = `<img src="${work.content}" alt="公開された描画作品">`;
+                        } else {
+                            // テキスト作品（小説、音楽）の場合
+                            contentHtml = `<pre>${work.content}</pre>`;
+                        }
+
+                        // ルーム名の最初の文字を大文字に
+                        const roomName = work.room ? work.room.charAt(0).toUpperCase() + work.room.slice(1) : '不明';
+
+                        card.innerHTML = `
+                            <h3>${work.title || '（タイトルなし）'}</h3>
+                            <p><strong>ルーム:</strong> ${roomName}</p>
+                            <p><strong>公開日時:</strong> ${work.published_at ? new Date(work.published_at).toLocaleString() : '不明'}</p>
+                            <div class="work-content">${contentHtml}</div>
+                        `;
+                        
+                        workListDiv.appendChild(card);
+                    });
+                })
+                .catch(error => {
+                    console.error('作品一覧の取得に失敗しました:', error);
+                    document.getElementById('workList').innerHTML = `<p style="color: red;">作品データの読み込み中にエラーが発生しました: ${error.message || '不明なエラー'}</p>`;
+                });
+        });
+    </script>
+</body>
+</html>
