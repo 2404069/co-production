@@ -15,9 +15,11 @@ const INITIAL_CONTENT = {
     music: '[歌詞/アイデア]:\nここに音楽の歌詞やアイデアを共同で入力してください。',
 };
 
-// ルームの状態を保持するオブジェクト (freeのcontentは描画履歴の配列を持つオブジェクト)
+// ルームの状態を保持するオブジェクト
 const rooms = {
+    // freeのcontentは描画履歴の配列を持つオブジェクト { history: [] }
     free: { content: { history: [] }, cursors: new Map(), clients: new Set() },
+    // novel/musicのcontentは文字列
     novel: { content: INITIAL_CONTENT.novel, cursors: new Map(), clients: new Set() },
     music: { content: INITIAL_CONTENT.music, cursors: new Map(), clients: new Set() },
 };
@@ -30,18 +32,19 @@ function initializeDataFiles() {
     
     // データの初期化または読み込み
     Object.keys(rooms).forEach(room => {
-        const filePath = path.join(DATA_DIR, `${room}.json`);
+        const filePath = path.join(DATA_DIR, room === 'free' ? 'free.json' : `${room}.txt`);
         
         if (!fs.existsSync(filePath)) {
             const content = room === 'free' ? { history: [] } : INITIAL_CONTENT[room];
-            fs.writeFileSync(filePath, JSON.stringify({ content }), 'utf8');
+            const dataToWrite = room === 'free' ? JSON.stringify(content) : content;
+            fs.writeFileSync(filePath, dataToWrite, 'utf8');
             rooms[room].content = content;
         } else {
             try {
                 const data = fs.readFileSync(filePath, 'utf8');
-                rooms[room].content = JSON.parse(data).content;
+                rooms[room].content = room === 'free' ? JSON.parse(data) : data;
             } catch (e) {
-                console.error(`Error reading ${room}.json, initializing with default.`, e);
+                console.error(`Error reading ${room} data, initializing with default.`, e);
                 const content = room === 'free' ? { history: [] } : INITIAL_CONTENT[room];
                 rooms[room].content = content;
             }
@@ -49,241 +52,236 @@ function initializeDataFiles() {
     });
 }
 
-// --- 2. Expressサーバー設定 ---
+// データをファイルに書き込む汎用関数
+function saveContentToFile(room, content) {
+    const filePath = path.join(DATA_DIR, room === 'free' ? 'free.json' : `${room}.txt`);
+    const dataToWrite = room === 'free' ? JSON.stringify(content) : content;
+    
+    fs.writeFile(filePath, dataToWrite, 'utf8', (err) => {
+        if (err) console.error(`Failed to save ${room} content:`, err);
+    });
+}
+
+// --- 2. HTTPサーバー設定 (Express) ---
 const app = express();
 const server = http.createServer(app);
 
-// ミドルウェア
-app.use(express.json()); 
+app.use(express.json({ limit: '50mb' })); 
 app.use(express.static(__dirname)); 
 
-// --- 3. APIエンドポイント (コンテンツ読み込み) ---
-
-// /api/content/:room でコンテンツを取得するAPI
+// API: 初期コンテンツの取得
 app.get('/api/content/:room', (req, res) => {
     const room = req.params.room;
-    
-    if (!rooms[room]) {
-        return res.status(404).json({ error: 'Room not found.' });
-    }
-    
-    try {
-        // filesytemから直接最新データを読み込む
-        const filePath = path.join(DATA_DIR, `${room}.json`);
-        let content = rooms[room].content; // メモリ上の初期値
-
-        if (fs.existsSync(filePath)) {
+    if (rooms[room]) {
+        // ファイルから最新のコンテンツを読み込み直して返す (永続化の確認)
+        const filePath = path.join(DATA_DIR, room === 'free' ? 'free.json' : `${room}.txt`);
+        try {
             const data = fs.readFileSync(filePath, 'utf8');
-            content = JSON.parse(data).content;
+            const content = room === 'free' ? JSON.parse(data) : data;
+            res.json({ content: content });
+        } catch (e) {
+            console.error(`Error reading data from file system: ${room}`, e);
+            res.json({ content: rooms[room].content }); // メモリ上のものをフォールバック
         }
-
-        res.json({ content: content });
-    } catch (error) {
-        console.error(`Error loading content for ${room}:`, error);
-        res.status(500).json({ error: 'Failed to load content.' });
+    } else {
+        res.status(404).send('Room not found');
     }
 });
 
-
-// /api/publish で作品を公開するAPI (変更なし)
+// API: 作品公開
 app.post('/api/publish', (req, res) => {
     const { title, room, content, content_type, nickname } = req.body;
+    const publishFilePath = path.join(__dirname, 'published_works.json');
     
-    if (!title || !room || !content || !content_type || !nickname) {
-        return res.status(400).json({ error: 'Missing required fields.' });
-    }
-
-    const publishedWork = {
-        title,
-        room,
-        content,
-        content_type,
-        nickname,
+    const newWork = {
+        id: Date.now(),
+        title: title || 'タイトルなし',
+        room: room,
+        author: nickname || '匿名',
+        content: content,
+        content_type: content_type,
         published_at: new Date().toISOString()
     };
     
-    const PUBLISHED_FILE = path.join(DATA_DIR, 'published_works.json');
     let works = [];
-    
-    try {
-        if (fs.existsSync(PUBLISHED_FILE)) {
-            const data = fs.readFileSync(PUBLISHED_FILE, 'utf8');
-            works = JSON.parse(data);
-        }
-        
-        works.push(publishedWork);
-        fs.writeFileSync(PUBLISHED_FILE, JSON.stringify(works, null, 2), 'utf8');
-        
-        res.status(200).json({ message: 'Work published successfully.' });
-    } catch (error) {
-        console.error('Error publishing work:', error);
-        res.status(500).json({ error: 'Failed to publish work.' });
-    }
-});
-
-// /api/works で公開作品一覧を取得するAPI (変更なし)
-app.get('/api/works', (req, res) => {
-    const PUBLISHED_FILE = path.join(DATA_DIR, 'published_works.json');
-    try {
-        if (fs.existsSync(PUBLISHED_FILE)) {
-            const data = fs.readFileSync(PUBLISHED_FILE, 'utf8');
-            const works = JSON.parse(data);
-            res.json(works);
-        } else {
-            res.json([]); 
-        }
-    } catch (error) {
-        console.error('Error reading published works:', error);
-        res.status(500).json({ error: 'Failed to load published works.' });
-    }
-});
-
-
-// --- 4. WebSocketサーバー設定 ---
-
-const wss = new WebSocket.Server({ server });
-
-// ルーム内の全クライアントにメッセージをブロードキャスト
-function broadcast(room, data) {
-    if (rooms[room]) {
-        const message = JSON.stringify(data);
-        // ★デバッグ用ログ: 送信がどこまで行っているか確認できます★
-        // console.log(`Broadcasting [${data.type}] in ${room} to ${rooms[room].clients.size} clients.`); 
-        
-        rooms[room].clients.forEach(client => {
-            // ws.clientInfo.nicknameがない場合は弾く（接続直後などでデータが不完全な場合）
-            if (client.readyState === WebSocket.OPEN && client.clientInfo && client.clientInfo.room) {
-                client.send(message);
-            }
-        });
-    }
-}
-
-// データの永続化
-function saveRoomContent(room) {
-    const filePath = path.join(DATA_DIR, `${room}.json`);
-    try {
-        fs.writeFileSync(filePath, JSON.stringify({ content: rooms[room].content }), 'utf8');
-    } catch (error) {
-        console.error(`Error saving ${room} content:`, error);
-    }
-}
-
-
-wss.on('connection', (ws) => {
-    ws.id = Math.random().toString(36).substring(2, 9);
-    ws.clientInfo = {}; 
-
-    ws.on('message', (message) => {
+    if (fs.existsSync(publishFilePath)) {
         try {
-            const data = JSON.parse(message);
-            const { type, room, nickname } = data;
-            
-            if (type === 'join' && room && nickname) {
-                // 以前のルームから離脱させる処理
-                if (ws.clientInfo.room && rooms[ws.clientInfo.room]) {
-                    rooms[ws.clientInfo.room].clients.delete(ws);
-                }
+            works = JSON.parse(fs.readFileSync(publishFilePath, 'utf8'));
+        } catch (e) {
+            console.error('Failed to parse published_works.json:', e);
+        }
+    }
+    
+    works.unshift(newWork);
+    
+    fs.writeFile(publishFilePath, JSON.stringify(works, null, 2), 'utf8', (err) => {
+        if (err) {
+            console.error('Failed to save published work:', err);
+            return res.status(500).send('Failed to save published work');
+        }
+        res.status(200).send('Work published successfully');
+    });
+});
 
-                ws.clientInfo.room = room;
-                ws.clientInfo.nickname = nickname;
-                ws.nickname = nickname; // ニックネームをwsオブジェクトにも保持
+// API: 公開作品一覧の取得
+app.get('/api/works', (req, res) => {
+    const publishFilePath = path.join(__dirname, 'published_works.json');
+    if (fs.existsSync(publishFilePath)) {
+        try {
+            const works = JSON.parse(fs.readFileSync(publishFilePath, 'utf8'));
+            res.json(works);
+        } catch (e) {
+            res.status(500).json([]);
+        }
+    } else {
+        res.json([]);
+    }
+});
 
-                // 新しいルームに参加
-                rooms[room].clients.add(ws); 
 
-                // ユーザーリスト更新をブロードキャスト
-                const usersInRoom = Array.from(rooms[room].clients).map(c => c.nickname);
-                broadcast(room, { type: 'user_list_update', users: usersInRoom });
-            }
+// --- 3. WebSocketサーバー設定 ---
+const wss = new WebSocket.Server({ server });
+const clients = new Map();
 
-            if (!ws.clientInfo.room) return; 
-
-            switch (type) {
-                case 'draw':
-                    if (room === 'free') {
-                        // 描画履歴を更新・永続化
-                        const { x0, y0, x1, y1, color, lineWidth, isErase } = data;
-                        rooms.free.content.history.push({ x0, y0, x1, y1, color, lineWidth, isErase });
-                        saveRoomContent('free'); 
-                        // 他のクライアントにブロードキャスト（自分自身にも送ってローカル描画との一貫性を保つ）
-                        broadcast(room, data);
-                    }
-                    break;
-                case 'text_update':
-                    if (room === 'novel' || room === 'music') {
-                        rooms[room].content = data.content;
-                        saveRoomContent(room);
-                        // 他のクライアントにブロードキャスト
-                        broadcast(room, data);
-                    }
-                    break;
-                case 'clear':
-                    if (room === 'free') {
-                        rooms.free.content.history = [];
-                        saveRoomContent('free');
-                        broadcast(room, data);
-                    }
-                    break;
-                case 'undo':
-                case 'redo':
-                    if (room === 'free') {
-                        // クライアント側で historyIndex が操作されたことを通知
-                        const newHistoryIndex = data.historyIndex;
-                        
-                        // 履歴全体と新しいインデックスをブロードキャストし、クライアント側で再描画させる
-                        broadcast(room, { 
-                            type: 'undo_redo', 
-                            room: 'free',
-                            history: rooms.free.content.history, 
-                            historyIndex: newHistoryIndex 
-                        });
-                        // undo/redo はデータ永続化（ファイル保存）は不要。描画データ自体は 'draw' 時に保存済み。
-                    }
-                    break;
-                case 'cursor_update':
-                    // カーソル位置の変更は自分以外にブロードキャスト
-                    broadcast(room, {
-                        type: 'cursor_update',
-                        room: room,
-                        nickname: ws.nickname,
-                        isText: data.isText,
-                        position: data.position
-                    });
-                    break;
-            }
-
-        } catch (error) {
-            console.error('Error processing message:', error);
+// 全員または特定のルームにメッセージをブロードキャストする
+function broadcast(room, data) {
+    const message = JSON.stringify(data);
+    wss.clients.forEach(client => {
+        // クライアントがオープン状態で、かつ同じルームにいる場合に送信
+        if (client.readyState === WebSocket.OPEN && client.room === room) {
+            client.send(message);
         }
     });
+}
 
+wss.on('connection', (ws) => {
+    ws.id = Date.now().toString(36) + Math.random().toString(36).substr(2);
+    
+    ws.on('message', (message) => {
+        const data = JSON.parse(message);
+        
+        switch (data.type) {
+            case 'join':
+                // 以前のルームからクライアントとカーソル情報を削除
+                if (ws.room) {
+                    rooms[ws.room].clients.delete(ws);
+                    rooms[ws.room].cursors.delete(ws.nickname);
+                }
+
+                // 新しいルーム情報とニックネームを保存
+                ws.room = data.room;
+                ws.nickname = data.nickname;
+                
+                // 新しいルームにクライアントを追加
+                if (rooms[data.room]) {
+                    rooms[data.room].clients.add(ws);
+                }
+                
+                // 参加メッセージをブロードキャスト
+                const usersInRoom = Array.from(rooms[data.room].clients).map(c => c.nickname);
+                broadcast(data.room, { type: 'joined', users: usersInRoom });
+                
+                // 既存のカーソル情報を送信（新規参加者向け）
+                rooms[data.room].cursors.forEach((cursorPos, nickname) => {
+                    ws.send(JSON.stringify({
+                        type: 'cursor_update',
+                        room: data.room,
+                        nickname: nickname,
+                        isText: cursorPos.isText,
+                        position: cursorPos.position,
+                        tool: cursorPos.tool,
+                        penColor: cursorPos.penColor,
+                        penWidth: cursorPos.penWidth
+                    }));
+                });
+                break;
+                
+            case 'content_update':
+                if (data.room === 'free') {
+                    // 描画イベントの処理
+                    if (data.line) {
+                        const freeContent = rooms.free.content;
+                        
+                        // 描画履歴を更新（履歴に追加）
+                        freeContent.history.push({ 
+                            x0: data.line.x0, y0: data.line.y0, x1: data.line.x1, y1: data.line.y1, 
+                            color: data.line.color, width: data.line.width, tool: data.line.tool
+                        });
+                        
+                        // 履歴が長くなりすぎるのを防ぐ
+                        if (freeContent.history.length > 2000) {
+                            freeContent.history.shift();
+                        }
+                        saveContentToFile('free', freeContent);
+                        
+                        // 他のクライアントにブロードキャスト
+                        broadcast(data.room, { type: 'draw', room: data.room, ...data.line });
+                    }
+                    
+                } else if (data.room === 'novel' || data.room === 'music') {
+                    // テキストデータの処理
+                    rooms[data.room].content = data.content;
+                    broadcast(data.room, data);
+                    saveContentToFile(data.room, data.content);
+                }
+                break;
+
+            case 'clear':
+                // 全消去をブロードキャストし、サーバーデータとファイルを更新
+                rooms.free.content.history = []; // 履歴をクリア
+                broadcast('free', { type: 'clear', room: 'free' });
+                saveContentToFile('free', rooms.free.content);
+                break;
+                
+            case 'undo':
+            case 'redo':
+                // クライアント側で履歴インデックスが操作されたことを通知
+                // サーバーは履歴全体を送信し、クライアント側で再描画させる
+                if (data.room === 'free') {
+                    broadcast('free', { 
+                        type: 'undo_redo', 
+                        room: 'free', 
+                        history: rooms.free.content.history,
+                        historyIndex: data.historyIndex 
+                    });
+                }
+                break;
+
+            case 'cursor_update':
+                // カーソル情報を更新し、ブロードキャスト
+                if (rooms[data.room]) {
+                    rooms[data.room].cursors.set(ws.nickname, { 
+                        isText: data.isText, 
+                        position: data.position,
+                        tool: data.tool,
+                        penColor: data.penColor,
+                        penWidth: data.penWidth
+                    });
+                    
+                    broadcast(data.room, data);
+                }
+                break;
+        }
+    });
+    
     ws.on('close', () => {
-        const clientInfo = ws.clientInfo;
-        if (clientInfo && clientInfo.room) {
-            const { room, nickname } = clientInfo;
-            
+        const room = ws.room;
+        const nickname = ws.nickname;
+        
+        if (room && nickname) {
             rooms[room].clients.delete(ws);
+            rooms[room].cursors.delete(nickname);
             
-            // ユーザーリスト更新をブロードキャスト
+            // ルーム離脱をブロードキャスト
             const usersInRoom = Array.from(rooms[room].clients).map(c => c.nickname);
             broadcast(room, { type: 'user_list_update', users: usersInRoom });
             
             // 離脱したユーザーのカーソルを非表示にするメッセージもブロードキャスト
-            // (cursor_update は nickname が異なることを前提としてクライアント側で処理される)
             broadcast(room, { 
-                type: 'cursor_update', 
-                room, 
-                nickname, 
-                isText: true, 
-                position: -1 
+                type: 'cursor_update', room, nickname, isText: true, position: -1 
             });
             broadcast(room, { 
-                type: 'cursor_update', 
-                room, 
-                nickname, 
-                isText: false, 
-                position: {x: -1, y: -1}
+                type: 'cursor_update', room, nickname, isText: false, position: {x: -1, y: -1}
             });
         }
     });
@@ -293,11 +291,11 @@ wss.on('connection', (ws) => {
     });
 });
 
-// --- 5. サーバー起動 ---
+// --- 4. サーバー起動 ---
 initializeDataFiles(); 
 
 server.listen(PORT, HOST, () => {
-    console.log(`\n==============================================`);
-    console.log(`  Server is running on http://${HOST}:${PORT}`);
-    console.log(`==============================================`);
+    console.log(`\n=================================================`);
+    console.log(`Server running at http://${HOST}:${PORT}`);
+    console.log(`=================================================\n`);
 });

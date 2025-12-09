@@ -36,817 +36,421 @@
             padding: 10px;
             width: 80%;
             max-width: 300px;
-            margin: 10px 0 20px;
-            border: 1px solid #ccc;
+            margin: 10px 0 20px 0;
+            border: 1px solid #ddd;
             border-radius: 4px;
         }
-        #setup-screen button {
-            padding: 10px 20px;
+        #join-button {
+            padding: 12px 25px;
+            font-size: 18px;
             background-color: #4CAF50;
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 5px;
             cursor: pointer;
-            font-size: 16px;
             transition: background-color 0.3s;
         }
-        #setup-screen button:hover {
+        #join-button:hover {
             background-color: #45a049;
         }
 
-        /* --- メイン画面共通スタイル --- */
-        #main-content {
-            display: none;
-        }
+        /* --- ユーザー情報 --- */
         .user-info {
-            background-color: #e8f5e9;
-            padding: 10px;
-            border-radius: 4px;
             margin-bottom: 15px;
-            border-left: 5px solid #4CAF50;
-        }
-        .user-info label {
-            font-weight: bold;
-            color: #2e7d32;
-        }
-        .user-info span {
-            margin-right: 15px;
-            font-weight: normal;
+            padding: 10px;
+            border: 1px dashed #ccc;
+            border-radius: 4px;
+            display: inline-block;
         }
         
-        /* --- ルーム切り替えボタンのスタイル (追加) --- */
-        .room-switch-button {
-            padding: 5px 10px;
-            border: 1px solid #4CAF50;
-            background-color: white;
-            color: #4CAF50;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: all 0.2s;
-            margin-right: 5px;
-        }
-        .room-switch-button.active-room {
-            background-color: #4CAF50;
-            color: white;
-            font-weight: bold;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-
-        /* --- 描画ツールのコントロール群のスタイル --- */
-        #drawing-controls {
-            display: none; /* 初期は非表示 */
-            flex-wrap: wrap;
-            gap: 10px;
+        /* --- 描画コントロール --- */
+        .drawing-controls {
+            display: none; 
+            gap: 20px;
+            align-items: center;
             margin-bottom: 10px;
             padding: 10px;
             background-color: #f0f0f0;
             border-radius: 4px;
-            align-items: center;
         }
+        .tool-button.active {
+            border: 2px solid #4CAF50;
+            background-color: #e8f5e9;
+        }
+
+        /* --- コンテンツエリア --- */
+        .room-content {
+            border: 2px solid #ccc;
+            border-radius: 4px;
+            padding: 0; 
+            min-height: 600px;
+            margin-bottom: 20px;
+            background-color: #fff;
+            position: relative; 
+            overflow: hidden;
+        }
+        #drawingCanvas {
+            cursor: crosshair;
+            display: block;
+        }
+        
+        /* --- テキストエリアのスタイルの調整 --- */
+        textarea {
+            width: 100%;
+            height: 550px;
+            border: none;
+            padding: 15px; 
+            box-sizing: border-box;
+            resize: none;
+            font-size: 16px;
+            background-color: white;
+            position: relative;
+            z-index: 2; 
+            line-height: 1.5; 
+            font-family: monospace; 
+        }
+        #lyricsTextarea {
+            height: 300px; 
+        }
+
+        /* ======================================= */
+        /* ★★★ リアルタイムカーソル反映用のCSS (最終調整版) ★★★ */
+        /* ======================================= */
+        
+        /* 描画ルームのコンテンツ全体をマウス移動トラッキングの基点にする */
+        #drawing-room-content {
+            position: relative; /* 子要素のabsolute基準 */
+            overflow: hidden;
+        }
+        /* 小説/音楽ルームのコンテンツ全体をマウス移動トラッキングの基点にする */
+        #novel-room, .music-section.room-content {
+            position: relative; /* 子要素のabsolute基準 */
+            overflow: hidden;
+        }
+        
+        /* カーソルコンテナは、その親要素の(0,0)を基準とする */
+        .mouse-cursor-container, .text-cursor-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* カーソルの下の要素をクリックできるようにする */
+            z-index: 100;
+        }
+        
+        /* テキストカーソルコンテナは textarea の content-box から始まるように調整 */
+        .text-cursor-container {
+            top: 15px; /* textarea padding-top */
+            left: 15px; /* textarea padding-left */
+            width: calc(100% - 30px);
+            height: calc(100% - 30px);
+            z-index: 3; 
+            overflow: hidden; 
+        }
+        
+        /* 個々のリモートカーソル要素 */
+        .remote-cursor {
+            position: absolute;
+            white-space: nowrap;
+            z-index: 101;
+            pointer-events: none;
+            transition: transform 0.05s ease-out, left 0.05s ease-out, top 0.05s ease-out; /* なめらかに動くようにする */
+            display: none;
+        }
+        
+        /* マウスカーソル (三角形ポインターまたは描画ブラシ) */
+        .remote-cursor.mouse-cursor {
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 6px 0 6px 8px; /* 三角形 */
+            border-color: transparent transparent transparent currentColor;
+            transform: translate(0, 0); 
+            top: 0;
+            left: 0;
+            background-color: transparent;
+            border-radius: 0;
+            box-shadow: none;
+        }
+        
+        /* 描画ルームのブラシ表示用 */
+        .remote-cursor.mouse-cursor.draw-tool {
+            border: 2px solid currentColor !important;
+            border-radius: 50%;
+            background-color: transparent !important;
+            border-width: 0;
+            width: 10px;
+            height: 10px;
+            margin: -5px 0 0 -5px;
+            transform: none;
+        }
+
+        /* テキストカーソル (縦棒) */
+        .remote-cursor.text-cursor {
+            height: 1.5em; /* line-heightと合わせる */
+            width: 2px;
+            background-color: currentColor;
+            border-radius: 1px;
+            top: 0;
+            left: 0;
+            animation: none; /* 点滅をオフ */
+        }
+        
+        /* ニックネームタグ */
+        .remote-cursor-label {
+            position: absolute;
+            padding: 2px 5px;
+            font-size: 10px;
+            background-color: currentColor; 
+            color: white;
+            border-radius: 3px;
+            white-space: nowrap;
+            /* マウスカーソルの場合: ポインターの根元付近に表示 */
+            transform: translateY(-100%) translateX(2px);
+            margin: 0;
+            top: 0; 
+            left: 0; 
+        }
+        /* テキストカーソル上のタグ位置 */
+        .remote-cursor.text-cursor .remote-cursor-label {
+            transform: translateY(-100%) translateX(0);
+        }
+        /* ======================================= */
+        
+        /* --- 音楽ルームのスタイルは省略 --- */
+        .music-section {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            position: relative; 
+        }
+        #music-urls-list {
+            list-style: none;
+            padding: 0;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        #music-urls-list li {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            cursor: grab;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #fff;
+        }
+        #music-urls-list li:last-child {
+            border-bottom: none;
+        }
+        .remove-url {
+            background: #ff5555;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        /* --- コントロールボタンは省略 --- */
         .controls {
             display: flex;
             gap: 10px;
+            margin-top: 20px;
             align-items: center;
         }
-        .controls input[type="color"], .controls input[type="number"] {
-            padding: 5px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        .controls button {
-            padding: 8px 15px;
-            background-color: #4a86f7;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        .controls button:hover {
-            background-color: #3b73e8;
-        }
-
-        /* --- 描画ルームのスタイル --- */
-        #drawing-room {
-            display: none; /* 初期は非表示 */
-        }
-        #drawing-room-content {
-            border: 1px solid #ccc;
-            background-color: #fff;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            position: relative; /* カーソル表示の基準 */
-        }
-        #drawingCanvas {
-            display: block;
-        }
-        .remote-cursor-drawing {
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            border: 2px solid red;
-            border-radius: 50%;
-            pointer-events: none;
-            transition: transform 0.1s linear;
-            z-index: 1000;
-        }
-        .cursor-nickname {
-            position: absolute;
-            top: -15px;
-            left: 20px;
-            background-color: red;
-            color: white;
-            padding: 2px 5px;
-            border-radius: 3px;
-            font-size: 10px;
-            white-space: nowrap;
-        }
-
-        /* --- 小説/音楽ルームのスタイル --- */
-        #novel-room, #music-room {
-            display: none; /* 初期は非表示 */
-        }
-        .textarea-container {
-            position: relative;
-        }
-        textarea {
-            width: 100%;
-            height: 500px;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
+        button {
+            padding: 10px 15px;
             font-size: 16px;
-            line-height: 1.6;
-            resize: none;
-        }
-        .remote-cursor-text {
-            position: absolute;
-            width: 2px;
-            background-color: red;
-            pointer-events: none;
-            animation: blink 1s infinite;
-            z-index: 1000;
-        }
-        .remote-cursor-text .cursor-nickname {
-            top: -18px;
-            left: 5px;
-            background-color: red;
-        }
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0; }
-        }
-
-        /* --- 音楽ルーム固有のスタイル --- */
-        .music-url-list {
-            margin-top: 10px;
-            padding: 10px;
-            border: 1px dashed #4CAF50;
+            cursor: pointer;
+            border: none;
             border-radius: 4px;
-            background-color: #f9f9f9;
+            transition: background-color 0.3s;
         }
-        .music-url-list p {
-            margin: 5px 0;
-            padding: 3px 5px;
-            background-color: #e8f5e9;
-            border-left: 3px solid #4CAF50;
+        #save-button {
+            background-color: #2196F3;
+            color: white;
         }
-
-        /* --- 作品公開フォームのスタイル --- */
-        #publish-work-form {
-            margin-top: 20px;
-            padding: 15px;
-            border: 1px solid #4CAF50;
-            border-radius: 8px;
-            background-color: #e8f5e9;
+        #publish-button {
+            background-color: #FF9800;
+            color: white;
         }
-        #publish-work-form input[type="text"] {
-            padding: 8px;
-            width: 300px;
-            margin-right: 10px;
+        #work-title {
+            padding: 10px;
+            flex-grow: 1;
             border: 1px solid #ccc;
             border-radius: 4px;
         }
-        #publish-work-form button {
-            padding: 8px 15px;
-            background-color: #ff9800;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        #publish-work-form button:hover {
-            background-color: #e68900;
-        }
-        #publishStatus {
-            margin-top: 10px;
+        .status-message {
+            margin-left: 15px;
             font-weight: bold;
         }
-
     </style>
 </head>
 <body>
-
     <div class="container">
-        <h1>共同制作ツール</h1>
-
-        <p><a href="published.html" target="_blank">公開作品一覧を見る</a></p>
+        <h1>🖊️ 共同制作ツール</h1>
 
         <div id="setup-screen">
-            <h2>参加設定</h2>
-            <p>共同作業を始めるために、ニックネームと参加ルームを選択してください。</p>
-            <input type="text" id="nicknameInput" placeholder="ニックネームを入力" maxlength="10">
-            <div>
-                <label for="initialRoomSelect">ルーム選択:</label>
-                <select id="initialRoomSelect">
-                    <option value="free">フリールーム (お絵かき)</option>
-                    <option value="novel">小説ルーム (テキスト)</option>
-                    <option value="music">音楽ルーム (テキスト/URL)</option>
-                </select>
+            <h2>ようこそ！ニックネームとルームを選んでください</h2>
+            <label for="initialNickname">ニックネーム:</label>
+            <input type="text" id="initialNickname" placeholder="ニックネームを入力" value="名無しさん">
+            
+            <div id="initial-room-selection" class="room-selection" style="display: inline-block;">
+                <input type="radio" id="initial-free-room" name="initial-room" value="free" checked>
+                <label for="initial-free-room">フリールーム (描画)</label>
+                <input type="radio" id="initial-novel-room" name="initial-room" value="novel">
+                <label for="initial-novel-room">小説ルーム</label>
+                <input type="radio" id="initial-music-room" name="initial-room" value="music">
+                <label for="initial-music-room">音楽ルーム</label>
             </div>
-            <button id="joinButton">参加</button>
+            <br>
+            <button id="join-button">ルームに参加する</button>
         </div>
 
-        <div id="main-content">
+        <div id="main-content" style="display: none;">
+            
             <div class="user-info">
                 <label>現在のルーム:</label>
                 <span id="currentRoomDisplay"></span>
                 <label style="margin-left: 20px;">現在のニックネーム:</label>
                 <span id="currentNicknameDisplay"></span>
-                
-                <div id="runtime-room-selection" style="display: inline-block; margin-left: 20px;">
-                    <button data-room="free" class="room-switch-button">フリールーム</button>
-                    <button data-room="novel" class="room-switch-button">小説ルーム</button>
-                    <button data-room="music" class="room-switch-button">音楽ルーム</button>
+            </div>
+
+            <div id="drawing-room" class="room-content"> 
+                <div class="drawing-controls" id="drawing-controls">
+                    <label>ツール:</label>
+                    <button id="penTool" class="tool-button active">🖊️ ペン</button>
+                    <button id="eraserTool" class="tool-button">🧹 消しゴム</button>
+                    
+                    <label for="penColor">色:</label>
+                    <input type="color" id="penColor" value="#000000">
+                    <label for="penWidth">太さ:</label>
+                    <input type="range" id="penWidth" min="1" max="50" value="5">
+                    <span id="widthValue">5</span>px
+                    <button id="clearCanvas">キャンバスをクリア</button>
+                </div>
+                <div class="room-content" id="drawing-room-content">
+                    <div id="drawing-mouse-cursor-container" class="mouse-cursor-container"></div>
+                    <canvas id="drawingCanvas" width="1000" height="600"></canvas>
                 </div>
             </div>
-
-            <div id="online-users" style="margin-bottom: 15px;">
-                <strong>オンライン: </strong><span id="user-list"></span>
+            
+            <div id="novel-room" class="room-content">
+                <div id="novel-mouse-cursor-container" class="mouse-cursor-container"></div>
+                <div id="novel-text-cursor-container" class="text-cursor-container"></div>
+                <textarea id="novelTextarea" placeholder="小説を書きましょう..."></textarea>
             </div>
-
-            <div id="drawing-room">
-                <h2>フリールーム (お絵かき)</h2>
-                <div id="drawing-controls">
-                    <div class="controls">
-                        <label for="colorPicker">色:</label>
-                        <input type="color" id="colorPicker" value="#ff0000">
-                    </div>
-                    <div class="controls">
-                        <label for="lineWidthRange">太さ:</label>
-                        <input type="range" id="lineWidthRange" min="1" max="50" value="5">
-                        <span id="lineWidthDisplay">5</span>px
-                    </div>
-                    <div class="controls">
-                        <button id="eraseButton">消しゴム</button>
-                        <button id="clearButton">全消去</button>
-                        <button id="undoButton" disabled>元に戻す</button>
-                        <button id="redoButton" disabled>やり直す</button>
-                    </div>
-                </div>
-                <div id="drawing-room-content">
-                    <canvas id="drawingCanvas"></canvas>
-                    </div>
-            </div>
-
-            <div id="novel-room">
-                <h2>小説ルーム</h2>
-                <div class="textarea-container">
-                    <textarea id="novelTextarea" placeholder="ここに共同で小説を入力してください。" spellcheck="false"></textarea>
-                    </div>
-            </div>
-
+            
             <div id="music-room">
-                <h2>音楽ルーム (歌詞/アイデア)</h2>
-                <p>歌詞やアイデア、楽譜へのURLなどを共同で入力できます。URLは `[URL: http://example.com/score]` の形式で記載してください。</p>
-                <div class="music-url-list">
-                    <strong>関連URL一覧:</strong>
-                    <div id="music-url-display"></div>
+                
+                <div class="music-section room-content">
+                    <h3>📝 歌詞・アイデア</h3>
+                    <div id="lyrics-mouse-cursor-container" class="mouse-cursor-container"></div>
+                    <div id="lyrics-text-cursor-container" class="text-cursor-container"></div>
+                    <textarea id="lyricsTextarea" placeholder="歌詞、コード進行、制作アイデアなどを書きましょう..."></textarea>
                 </div>
-                <div class="textarea-container">
-                    <textarea id="lyricsTextarea" placeholder="ここに共同で歌詞やアイデアを入力してください。" spellcheck="false"></textarea>
+
+                <div class="music-section">
+                    <h3>🎶 音源URLリスト (並べ替え可能)</h3>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <input type="text" id="newMusicUrl" placeholder="新しい音源のURLまたは埋め込みコードを貼付" style="flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        <button id="addMusicUrl" style="background-color: #3498db; color: white;">追加</button>
                     </div>
+                    <ul id="music-urls-list">
+                        </ul>
+                </div>
             </div>
 
-            <div id="publish-work-form">
-                <h3>作品公開</h3>
-                <input type="text" id="workTitleInput" placeholder="作品タイトルを入力" maxlength="50">
-                <button id="publishButton">公開</button>
-                <div id="publishStatus"></div>
+            <div class="controls">
+                <input type="text" id="work-title" placeholder="作品タイトルを入力" required>
+                <button id="save-button">💾 一時保存</button>
+                <button id="publish-button">📢 作品を公開</button>
+                <span id="publish-status" class="status-message"></span>
             </div>
 
+            <div class="view-works">
+                <a href="/published.html">公開作品一覧を見る →</a>
+            </div>
         </div>
     </div>
 
     <script>
-        // =========================================================================================
-        // 初期設定
-        // =========================================================================================
-
-        let ws;
-        let nickname = '';
-        let currentRoom = '';
-        let history = []; // 描画履歴
-        let historyIndex = -1; // 現在の履歴位置
-
         // 【重要】DOM操作に必要な要素の取得
         const setupScreen = document.getElementById('setup-screen');
         const mainContent = document.getElementById('main-content');
-        const nicknameInput = document.getElementById('nicknameInput');
-        const initialRoomSelect = document.getElementById('initialRoomSelect');
-        const joinButton = document.getElementById('joinButton');
-        const currentRoomDisplay = document.getElementById('currentRoomDisplay');
+        const joinButton = document.getElementById('join-button');
+        const initialNicknameInput = document.getElementById('initialNickname');
         const currentNicknameDisplay = document.getElementById('currentNicknameDisplay');
-        
-        // ★★★ 表示制御対象のルーム要素定数 ★★★
+        const currentRoomDisplay = document.getElementById('currentRoomDisplay');
+
         const drawingRoom = document.getElementById('drawing-room');
         const novelRoom = document.getElementById('novel-room');
         const musicRoom = document.getElementById('music-room');
-        const drawingControls = document.getElementById('drawing-controls'); // 描画コントロール
-        
-        // ★★★ 追加: ルーム要素のマップ (確実にすべてを制御するため) ★★★
-        const roomElements = {
-            'free': drawingRoom,
-            'novel': novelRoom,
-            'music': musicRoom
-        };
-
         const novelTextarea = document.getElementById('novelTextarea');
         const lyricsTextarea = document.getElementById('lyricsTextarea');
         
-        const roomSwitchButtons = document.querySelectorAll('.room-switch-button');
-
         const drawingRoomContent = document.getElementById('drawing-room-content');
-        const drawingCanvas = document.getElementById('drawingCanvas');
-        const ctx = drawingCanvas.getContext('2d');
+        const novelRoomContent = document.getElementById('novel-room');
+        const musicRoomContent = document.getElementById('music-room').querySelector('.music-section:first-child'); 
         
-        const musicUrlDisplay = document.getElementById('music-url-display');
+        const drawingMouseCursorContainer = document.getElementById('drawing-mouse-cursor-container');
+        const novelMouseCursorContainer = document.getElementById('novel-mouse-cursor-container');
+        const lyricsMouseCursorContainer = document.getElementById('lyrics-mouse-cursor-container');
         
-        const publishButton = document.getElementById('publishButton');
-        const workTitleInput = document.getElementById('workTitleInput');
-        const publishStatus = document.getElementById('publishStatus');
-
-        let isDrawing = false;
-        let lastX = 0;
-        let lastY = 0;
-        let musicUrls = [];
+        const novelTextCursorContainer = document.getElementById('novel-text-cursor-container');
+        const lyricsTextCursorContainer = document.getElementById('lyrics-text-cursor-container');
         
-        // リモートカーソル管理マップ
-        const remoteCursors = new Map();
-
-        // 描画キャンバスのサイズ設定
-        drawingCanvas.width = 800;
-        drawingCanvas.height = 500;
+        // 描画ツール関連
+        const penToolButton = document.getElementById('penTool');
+        const eraserToolButton = document.getElementById('eraserTool');
+        const penColorInput = document.getElementById('penColor');
+        const penWidthInput = document.getElementById('penWidth');
+        const widthValueSpan = document.getElementById('widthValue');
+        const clearCanvasButton = document.getElementById('clearCanvas');
         
-        // 初期背景を白に設定
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+        // 音楽ルーム関連
+        const newMusicUrlInput = document.getElementById('newMusicUrl');
+        const addMusicUrlButton = document.getElementById('addMusicUrl');
+        const musicUrlsList = document.getElementById('music-urls-list');
+
+        // 保存・公開関連
+        const saveButton = document.getElementById('save-button');
+        const publishButton = document.getElementById('publish-button');
+        const workTitleInput = document.getElementById('work-title');
+        const publishStatus = document.getElementById('publish-status');
         
-        // 描画設定の初期値
-        let currentColor = document.getElementById('colorPicker').value;
-        let currentLineWidth = parseInt(document.getElementById('lineWidthRange').value);
-        let isErasing = false;
+        // WebSocket関連のグローバル変数
+        let ws = null;
+        let currentRoom = ''; 
+        let nickname = '';
+        let musicUrls = []; 
+        let currentPenColor = '#000000';
+        let currentPenWidth = 5;
+        let currentTool = 'pen'; 
 
-        // =========================================================================================
-        // ユーティリティ関数
-        // =========================================================================================
+        // ★★★ カーソル関連のグローバル変数 ★★★
+        const cursorColors = {}; 
+        const colorPool = ['#E55039', '#4a69bd', '#4CAF50', '#ff9f43', '#1abc9c', '#9b59b6']; // 使用する色のプール
+        let colorIndex = 0;
+        const remoteCursors = new Map(); // Key: nickname, Value: { mouseCursor: HTMLElement, textCursor: HTMLElement }
 
-        /**
-         * ルーム名表示用
-         */
-        function getRoomName(room) {
-            switch(room) {
-                case 'free': return 'フリールーム (お絵かき)';
-                case 'novel': return '小説ルーム';
-                case 'music': return '音楽ルーム';
-                default: return '不明';
-            }
-        }
-        
-        /**
-         * ルームの初期コンテンツをロードし、表示を切り替える (再々最適化)
-         */
-        async function loadInitialContent(room) {
-            // 1. すべてのルームを確実に非表示にする
-            Object.keys(roomElements).forEach(key => {
-                roomElements[key].style.display = 'none';
-            });
-            drawingControls.style.display = 'none'; // 描画コントロールはfree専用なので別途非表示
+        // =========================================================
+        // ★★★ 1. 起動制御ロジック ★★★
+        // =========================================================
 
-            // 2. 選択されたルームのみ表示し、コンテンツをロード
-            if (room === 'free') {
-                drawingRoom.style.display = 'block';
-                drawingControls.style.display = 'flex'; // 描画コントロールを表示
-                await loadDrawing();
-            } else if (room === 'novel') {
-                novelRoom.style.display = 'block';
-                novelTextarea.value = await loadTextData('novel');
-            } else if (room === 'music') {
-                musicRoom.style.display = 'block';
-                const loadedData = await loadTextData('music');
-                const [lyrics, urls] = parseMusicData(loadedData);
-                lyricsTextarea.value = lyrics;
-                musicUrls = urls;
-                renderMusicUrls();
-            }
-        }
-
-        /**
-         * テキストデータ取得
-         */
-        async function loadTextData(room) {
-            try {
-                const res = await fetch(`/api/content/${room}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    return data.content;
-                }
-            } catch (error) {
-                console.error(`Error loading ${room} content:`, error);
-            }
-            return ''; // エラー時は空文字を返す
-        }
-        
-        /**
-         * 描画データ取得
-         */
-        async function loadDrawing() {
-            try {
-                const res = await fetch('/api/content/free');
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.content && data.content.history) {
-                        history = data.content.history;
-                        historyIndex = history.length - 1;
-                        redrawCanvas();
-                        updateUndoRedoButtons();
-                    } else {
-                        // データがない場合は初期化
-                        ctx.fillStyle = 'white';
-                        ctx.fillRect(0, 0, drawingCanvas.width, drawingCanvas.height);
-                        history = [];
-                        historyIndex = -1;
-                        updateUndoRedoButtons();
-                    }
-                }
-            } catch (error) {
-                console.error('Error loading drawing content:', error);
-            }
-        }
-        
-        /**
-         * 音楽データのURLをパース
-         */
-        function parseMusicData(data) {
-            const urlRegex = /\[URL: (.*?)\]/g;
-            const urls = [];
-            let match;
-            
-            // 歌詞/アイデア部分だけを抽出するためにURL行を削除
-            let lyrics = data.replace(urlRegex, '').trim();
-            
-            // 再度全体からURLを抽出
-            let temp = data;
-            while ((match = urlRegex.exec(temp)) !== null) {
-                urls.push(match[1]);
-            }
-            
-            return [lyrics, urls];
-        }
-
-        /**
-         * 音楽URLリストをHTMLで表示
-         */
-        function renderMusicUrls() {
-            musicUrlDisplay.innerHTML = '';
-            if (musicUrls.length === 0) {
-                musicUrlDisplay.innerHTML = '<p style="color: #666;">まだURLは登録されていません。</p>';
-                return;
-            }
-            musicUrls.forEach(url => {
-                const p = document.createElement('p');
-                const a = document.createElement('a');
-                a.href = url;
-                a.textContent = url;
-                a.target = '_blank';
-                p.appendChild(a);
-                musicUrlDisplay.appendChild(p);
-            });
-        }
-        
-        // =========================================================================================
-        // WebSocket通信
-        // =========================================================================================
-
-        /**
-         * WebSocketの初期化と接続処理
-         */
-        function initializeWebSocket(room) {
-            currentRoom = room;
-
-            // 以下のホスト名をRenderで割り当てられた公開アドレスに書き換えてください。
-            ws = new WebSocket('wss://co-production.onrender.com'); // ★Placeholder: 実際のホスト名に変更が必要★
-
-            ws.onopen = () => {
-                console.log('WebSocket connection established.');
-                sendJoinRoom(room);
-            };
-
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                handleMessage(data);
-            };
-
-            ws.onclose = () => {
-                console.log('WebSocket connection closed. Attempting to reconnect...');
-                setTimeout(() => initializeWebSocket(currentRoom), 5000); // 5秒後に再接続を試みる
-            };
-
-            ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
-            };
-        }
-        
-        /**
-         * ルーム参加メッセージの送信
-         */
-        function sendJoinRoom(room) {
-            ws.send(JSON.stringify({
-                type: 'join',
-                room: room,
-                nickname: nickname
-            }));
-        }
-
-        /**
-         * 描画イベントの送信
-         */
-        function sendDrawing(x0, y0, x1, y1, color, lineWidth, isErase) {
-            ws.send(JSON.stringify({
-                type: 'draw',
-                room: 'free',
-                x0, y0, x1, y1, color, lineWidth, isErase
-            }));
-        }
-
-        /**
-         * テキスト更新イベントの送信
-         */
-        function sendTextUpdate(text, room) {
-            ws.send(JSON.stringify({
-                type: 'text_update',
-                room: room,
-                content: text
-            }));
-        }
-        
-        /**
-         * カーソル位置更新の送信
-         */
-        function sendCursorUpdate(isText, position) {
-            ws.send(JSON.stringify({
-                type: 'cursor_update',
-                room: currentRoom,
-                isText: isText,
-                position: position // {x, y} for drawing, index for text
-            }));
-        }
-        
-        /**
-         * メッセージハンドラ
-         */
-        function handleMessage(data) {
-            switch (data.type) {
-                case 'joined':
-                    updateUserList(data.users);
-                    break;
-                case 'user_list_update':
-                    updateUserList(data.users);
-                    break;
-                case 'draw':
-                    if (data.room === 'free') {
-                        drawLine(data.x0, data.y0, data.x1, data.y1, data.color, data.lineWidth, data.isErase);
-                    }
-                    break;
-                case 'text_update':
-                    if (data.room === 'novel' && data.content !== novelTextarea.value) {
-                        novelTextarea.value = data.content;
-                    } else if (data.room === 'music' && data.content !== lyricsTextarea.value) {
-                        const [lyrics, urls] = parseMusicData(data.content);
-                        lyricsTextarea.value = lyrics;
-                        musicUrls = urls;
-                        renderMusicUrls();
-                    }
-                    break;
-                case 'clear':
-                    if (data.room === 'free') {
-                        clearCanvas();
-                        history = [];
-                        historyIndex = -1;
-                        updateUndoRedoButtons();
-                    }
-                    break;
-                case 'undo_redo':
-                    if (data.room === 'free') {
-                        history = data.history;
-                        historyIndex = data.historyIndex;
-                        redrawCanvas();
-                        updateUndoRedoButtons();
-                    }
-                    break;
-                case 'cursor_update':
-                    updateRemoteCursor(data);
-                    break;
-                default:
-                    console.log('Received unknown message type:', data.type);
-            }
-        }
-        
-        /**
-         * オンラインユーザーリストの更新
-         */
-        function updateUserList(users) {
-            const userListElement = document.getElementById('user-list');
-            userListElement.textContent = users.join(', ');
-        }
-        
-        // =========================================================================================
-        // 描画ルームのロジック
-        // =========================================================================================
-
-        /**
-         * 描画処理 (ライン)
-         */
-        function drawLine(x0, y0, x1, y1, color, lineWidth, isErase, addToHistory = false) {
-            ctx.beginPath();
-            ctx.strokeStyle = color;
-            ctx.lineWidth = lineWidth;
-            ctx.lineCap = 'round';
-            ctx.globalCompositeOperation = isErase ? 'destination-out' : 'source-over';
-            ctx.moveTo(x0, y0);
-            ctx.lineTo(x1, y1);
-            ctx.stroke();
-
-            // 履歴に追加 (ローカル操作の場合のみ)
-            if (addToHistory) {
-                const drawData = { x0, y0, x1, y1, color, lineWidth, isErase };
-                // undo後に新しい描画をした場合、それ以降の履歴を消す
-                if (historyIndex < history.length - 1) {
-                    history.splice(historyIndex + 1);
-                }
-                history.push(drawData);
-                historyIndex = history.length - 1;
-                updateUndoRedoButtons();
-            }
-        }
-        
-        /**
-         * キャンバス全消去
-         */
-        function clearCanvas() {
-            ctx.globalCompositeOperation = 'source-over';
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, drawingCanvas.width, drawingCanvas.height);
-        }
-
-        /**
-         * 履歴に基づいてキャンバスを再描画
-         */
-        function redrawCanvas() {
-            clearCanvas();
-            for (let i = 0; i <= historyIndex; i++) {
-                const data = history[i];
-                drawLine(data.x0, data.y0, data.x1, data.y1, data.color, data.lineWidth, data.isErase);
-            }
-        }
-        
-        /**
-         * 元に戻す/やり直しのボタン状態更新
-         */
-        function updateUndoRedoButtons() {
-            document.getElementById('undoButton').disabled = historyIndex < 0;
-            document.getElementById('redoButton').disabled = historyIndex >= history.length - 1;
-        }
-
-        // =========================================================================================
-        // リモートカーソル管理
-        // =========================================================================================
-
-        /**
-         * リモートカーソルを更新
-         */
-        function updateRemoteCursor(data) {
-            if (data.nickname === nickname) return; // 自分のカーソルは無視
-
-            let cursorDiv = remoteCursors.get(data.nickname);
-            
-            // カーソル要素がまだない場合は作成
-            if (!cursorDiv) {
-                cursorDiv = createCursorElement(data.nickname);
-                remoteCursors.set(data.nickname, cursorDiv);
-            }
-
-            // 自分のルームと一致しない、または非表示が指示された場合
-            if (data.room !== currentRoom || (data.isText && data.position === -1) || (!data.isText && data.position.x === -1)) {
-                 // 非表示に設定
-                cursorDiv.style.display = 'none';
-                return;
-            }
-            
-            // 自分のルームと一致し、カーソルがある場合
-            cursorDiv.style.display = 'block';
-            
-            if (data.isText) {
-                // テキストカーソルの処理 (novel/musicルーム)
-                cursorDiv.className = 'remote-cursor-text';
-                const textarea = data.room === 'novel' ? novelTextarea : lyricsTextarea;
-                positionTextCursor(cursorDiv, textarea, data.position);
-            } else {
-                // 描画カーソルの処理 (freeルーム)
-                cursorDiv.className = 'remote-cursor-drawing';
-                // 描画ルームの親要素に移動（もし別のルームから来た場合）
-                if (cursorDiv.parentNode !== drawingRoomContent) {
-                    drawingRoomContent.appendChild(cursorDiv);
-                }
-                cursorDiv.style.transform = `translate(${data.position.x - 10}px, ${data.position.y - 10}px)`;
-            }
-        }
-        
-        /**
-         * カーソル要素を生成
-         */
-        function createCursorElement(name) {
-            const div = document.createElement('div');
-            const nicknameSpan = document.createElement('span');
-            nicknameSpan.className = 'cursor-nickname';
-            nicknameSpan.textContent = name;
-            div.appendChild(nicknameSpan);
-            
-            // ひとまず描画ルーム用として作成
-            drawingRoomContent.appendChild(div);
-            
-            return div;
-        }
-        
-        /**
-         * テキストエリア内のカーソル位置を計算し、カーソル要素を配置
-         */
-        function positionTextCursor(cursorDiv, textarea, position) {
-            const textareaContainer = textarea.closest('.textarea-container');
-            
-            // 親要素が異なる場合は移動させる
-            if (cursorDiv.parentNode !== textareaContainer) {
-                textareaContainer.appendChild(cursorDiv);
-            }
-            
-            // テキストカーソル位置計算
-            const preText = textarea.value.substring(0, position);
-            
-            const measureSpan = document.createElement('span');
-            measureSpan.style.whiteSpace = 'pre-wrap';
-            measureSpan.style.font = window.getComputedStyle(textarea).font;
-            measureSpan.style.position = 'absolute';
-            measureSpan.style.visibility = 'hidden';
-            measureSpan.style.width = textarea.clientWidth + 'px';
-            measureSpan.style.padding = window.getComputedStyle(textarea).padding;
-            
-            // カーソル前のテキストとカーソルをシミュレートする要素
-            measureSpan.innerHTML = preText.replace(/\n/g, '<br>') + '<span id="cursor-pos-measure">|</span>';
-            
-            document.body.appendChild(measureSpan);
-            
-            const cursorMeasure = document.getElementById('cursor-pos-measure');
-            if (cursorMeasure) {
-                const rect = cursorMeasure.getBoundingClientRect();
-                const textareaRect = textarea.getBoundingClientRect();
-                
-                // textareaのパディングなどを考慮して相対座標に変換
-                const x = rect.left - textareaRect.left + textarea.scrollLeft;
-                const y = rect.top - textareaRect.top + textarea.scrollTop + 2; // +2は調整
-                
-                cursorDiv.style.transform = `translate(${x}px, ${y}px)`;
-                cursorDiv.style.height = window.getComputedStyle(textarea).lineHeight;
-            }
-            
-            document.body.removeChild(measureSpan);
-        }
-
-        // =========================================================================================
-        // イベントリスナー設定
-        // =========================================================================================
-        
-        /**
-         * 起動ボタンのクリックイベント
-         */
         joinButton.addEventListener('click', () => {
-            const initialNickname = nicknameInput.value.trim();
-            const initialRoom = initialRoomSelect.value;
+            const initialNickname = initialNicknameInput.value.trim() || '名無しさん';
+            const initialRoomElement = document.querySelector('input[name="initial-room"]:checked');
+            const initialRoom = initialRoomElement ? initialRoomElement.value : 'free';
             
-            if (initialNickname && initialNickname.length <= 10) {
+            if (initialNickname) {
                 nickname = initialNickname;
                 currentRoom = initialRoom;
-
                 currentNicknameDisplay.textContent = nickname;
                 currentRoomDisplay.textContent = getRoomName(currentRoom);
                 
@@ -854,211 +458,726 @@
                 mainContent.style.display = 'block';
 
                 initializeWebSocket(initialRoom);
-                loadInitialContent(initialRoom);
-                updateRoomSwitchButtons(initialRoom);
-            } else {
-                alert('ニックネームは1〜10文字で入力してください。');
             }
         });
-        
-        /**
-         * ルーム切り替えボタンのイベントリスナー
-         */
-        roomSwitchButtons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                const newRoom = e.target.dataset.room;
-                if (newRoom !== currentRoom) {
-                    // カーソル非表示を送信
-                    sendCursorUpdate(true, -1); 
-                    sendCursorUpdate(false, {x: -1, y: -1});
-                    
-                    currentRoom = newRoom;
-                    currentRoomDisplay.textContent = getRoomName(currentRoom);
-                    
-                    // WebSocketのルーム変更とコンテンツ/カーソルのリロード
-                    sendJoinRoom(newRoom);
-                    loadInitialContent(newRoom);
-                    
-                    // ボタンのアクティブ状態を更新
-                    updateRoomSwitchButtons(newRoom);
-                }
-            });
-        });
 
-        /**
-         * ボタンのアクティブ状態を管理する関数
-         */
-        function updateRoomSwitchButtons(activeRoom) {
-            roomSwitchButtons.forEach(button => {
-                if (button.dataset.room === activeRoom) {
-                    button.classList.add('active-room');
-                } else {
-                    button.classList.remove('active-room');
-                }
-            });
+        function getRoomName(room) {
+            if (room === 'free') return 'フリールーム (描画)';
+            if (room === 'novel') return '小説ルーム';
+            if (room === 'music') return '音楽ルーム';
+            return room;
         }
 
-        // --- 描画イベント ---
-        drawingCanvas.addEventListener('mousedown', (e) => {
-            if (currentRoom !== 'free') return;
-            isDrawing = true;
-            [lastX, lastY] = [e.offsetX, e.offsetY];
-            // クリック時も点として描画履歴に残す
-            drawLine(lastX, lastY, lastX, lastY, currentColor, currentLineWidth, isErasing, true);
-            sendDrawing(lastX, lastY, lastX, lastY, currentColor, currentLineWidth, isErasing);
-        });
-
-        drawingCanvas.addEventListener('mousemove', (e) => {
-            // 現在のルームがfreeの場合でも、カーソル位置は常に送信
-            const position = {x: e.offsetX, y: e.offsetY};
-            sendCursorUpdate(false, position);
-
-            if (currentRoom !== 'free' || !isDrawing) return;
+        function initializeWebSocket(initialRoom) {
+            // 【重要】サーバーの公開アドレスに書き換えてください
+            ws = new WebSocket('wss://co-production.onrender.com'); 
             
-            drawLine(lastX, lastY, e.offsetX, e.offsetY, currentColor, currentLineWidth, isErasing, true);
-            sendDrawing(lastX, lastY, e.offsetX, e.offsetY, currentColor, currentLineWidth, isErasing);
-            
-            [lastX, lastY] = [e.offsetX, e.offsetY];
-        });
+            ws.onopen = () => {
+                console.log('WebSocket connection established.');
+                sendJoinRoom(initialRoom);
+                loadInitialContent(initialRoom); 
+            };
 
-        drawingCanvas.addEventListener('mouseup', () => {
-            isDrawing = false;
-        });
-
-        drawingCanvas.addEventListener('mouseout', () => {
-            isDrawing = false;
-            // カーソルを非表示に
-            if (currentRoom === 'free') {
-                sendCursorUpdate(false, {x: -1, y: -1});
-            }
-        });
-        
-        // --- 描画コントロール ---
-        document.getElementById('colorPicker').addEventListener('input', (e) => {
-            currentColor = e.target.value;
-            isErasing = false;
-            document.getElementById('eraseButton').classList.remove('active');
-        });
-
-        document.getElementById('lineWidthRange').addEventListener('input', (e) => {
-            currentLineWidth = parseInt(e.target.value);
-            document.getElementById('lineWidthDisplay').textContent = currentLineWidth;
-        });
-        
-        document.getElementById('eraseButton').addEventListener('click', (e) => {
-            isErasing = !isErasing;
-            e.target.classList.toggle('active', isErasing);
-        });
-
-        document.getElementById('clearButton').addEventListener('click', () => {
-            if (currentRoom !== 'free' || !confirm('キャンバス上のすべての内容を消去してもよろしいですか？')) return;
-            
-            clearCanvas();
-            ws.send(JSON.stringify({ type: 'clear', room: 'free' }));
-            
-            // 履歴をクリア
-            history = [];
-            historyIndex = -1;
-            updateUndoRedoButtons();
-        });
-        
-        const redoButton = document.getElementById('redoButton');
-
-        document.getElementById('undoButton').addEventListener('click', () => {
-            if (currentRoom !== 'free' || historyIndex < 0) return;
-
-            historyIndex--;
-            // サーバーにインデックス変更を送信 (サーバー側で履歴全体を再送信させる)
-            ws.send(JSON.stringify({ type: 'undo', room: 'free', historyIndex: historyIndex })); 
-            redrawCanvas();
-            updateUndoRedoButtons();
-        });
-
-        redoButton.addEventListener('click', () => {
-            if (currentRoom !== 'free' || historyIndex >= history.length - 1) return;
-            
-            historyIndex++;
-            // サーバーにインデックス変更を送信 (サーバー側で履歴全体を再送信させる)
-            ws.send(JSON.stringify({ type: 'redo', room: 'free', historyIndex: historyIndex })); 
-            redrawCanvas();
-            updateUndoRedoButtons();
-        });
-
-
-        // --- テキストエリアのトラッキング ---
-        function setupTextareaTracking(textarea, room) {
-            textarea.addEventListener('input', () => {
-                // テキスト変更を送信
-                sendTextUpdate(textarea.value, room);
-                
-                // 音楽ルームの場合、URLリストも更新
-                if (room === 'music') {
-                    const [lyrics, urls] = parseMusicData(textarea.value);
-                    musicUrls = urls;
-                    renderMusicUrls();
-                }
-            });
-            
-            // カーソル位置の変更をトラッキング
-            const updateCursorPosition = () => {
-                if (currentRoom === room) {
-                    sendCursorUpdate(true, textarea.selectionStart);
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'content_update') {
+                        if (data.room === 'free') {
+                            handleReceivedDrawing(data);
+                        } else if (data.room === 'novel' && data.room === currentRoom) {
+                            novelTextarea.value = data.content;
+                        } else if (data.room === 'music' && data.room === currentRoom) {
+                             const [lyrics, urls] = parseMusicData(data.content); // サーバーはテキスト全体をcontentで送る
+                             lyricsTextarea.value = lyrics;
+                             musicUrls = urls;
+                             renderMusicUrls();
+                        }
+                    } else if (data.type === 'cursor_update' && data.room === currentRoom) { 
+                        if (data.nickname === nickname) return;
+                        updateRemoteCursor(data);
+                    } else if (data.type === 'joined') {
+                        // 参加者リストの更新など（今回は省略）
+                        console.log(`User joined: ${data.nickname}`);
+                    }
+                } catch (e) {
+                    console.error('WebSocket message handling error:', e);
                 }
             };
 
-            textarea.addEventListener('keyup', updateCursorPosition);
-            textarea.addEventListener('mouseup', updateCursorPosition);
-            textarea.addEventListener('focus', updateCursorPosition); // フォーカス時にも送信
+            ws.onclose = () => {
+                console.log('WebSocket connection closed.');
+            };
 
-            textarea.addEventListener('mouseout', () => {
-                // カーソルを非表示に
-                if (currentRoom === room) {
-                    sendCursorUpdate(true, -1);
+            // ★★★ 追加: グローバルマウス/テキストトラッキングの設定 ★★★
+            setupGlobalMouseTracking(); 
+        }
+
+        async function loadInitialContent(room) {
+            // ★すべてのルームを一旦非表示にし、選択されたルームのみ表示★
+            drawingRoom.style.display = 'none';
+            novelRoom.style.display = 'none';
+            musicRoom.style.display = 'none';
+
+            // リモートカーソルをすべて非表示にする
+            remoteCursors.forEach(({ mouseCursor, textCursor }) => {
+                mouseCursor.style.display = 'none';
+                textCursor.style.display = 'none';
+            });
+
+            // サーバーAPIからコンテンツをロード
+            const content = await fetchContentFromAPI(room);
+
+            if (room === 'free') {
+                drawingRoom.style.display = 'block';
+                // サーバーから取得した履歴を描画
+                if (content && content.history) {
+                    redrawCanvas(content.history);
                 }
+                document.getElementById('drawing-controls').style.display = 'flex';
+            } else if (room === 'novel') {
+                novelRoom.style.display = 'block';
+                novelTextarea.value = content || '';
+            } else if (room === 'music') {
+                musicRoom.style.display = 'block';
+                const [lyrics, urls] = parseMusicData(content || '');
+                lyricsTextarea.value = lyrics;
+                musicUrls = urls;
+                renderMusicUrls();
+            }
+        }
+        
+        async function fetchContentFromAPI(room) {
+             try {
+                const res = await fetch(`/api/content/${room}`);
+                if (!res.ok) { 
+                    console.error('Failed to load content:', res.statusText);
+                    return room === 'free' ? { history: [] } : '';
+                }
+                const data = await res.json();
+                return data.content;
+            } catch (error) { 
+                console.error(`データの読み込みに失敗しました (${room}):`, error); 
+                return room === 'free' ? { history: [] } : '';
+            }
+        }
+
+        function parseMusicData(data) {
+            const urlRegex = /\[URL: (.*?)\]/g;
+            let lyrics = data;
+            const urls = [];
+            let match;
+            
+            // URL部分を抽出
+            while ((match = urlRegex.exec(data)) !== null) {
+                urls.push(match[1]);
+                lyrics = lyrics.replace(match[0], '').trim();
+            }
+            // 歌詞/アイデアのヘッダー部分を削除
+            lyrics = lyrics.replace(/\[歌詞\/アイデア\]:\n?/, '').trim();
+            
+            return [lyrics, urls];
+        }
+
+
+        // =========================================================
+        // ★★★ 2. リアルタイム通信とカーソルロジック (コア機能) ★★★
+        // =========================================================
+
+        function sendJoinRoom(roomName) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'join',
+                    room: roomName,
+                    nickname: nickname
+                }));
+            }
+        }
+        
+        // ★★★ カーソル表示に必要なヘルパー関数 ★★★
+        
+        function getColorForNickname(nickname) {
+            if (!cursorColors[nickname]) {
+                cursorColors[nickname] = colorPool[colorIndex % colorPool.length];
+                colorIndex++;
+            }
+            return cursorColors[nickname];
+        }
+
+        function createCursorElement(id, container, nickname, color, cursorType) {
+            const element = document.createElement('span');
+            element.id = id;
+            element.className = `remote-cursor ${cursorType}`;
+            element.style.color = color;
+            element.style.display = 'none';
+            
+            const label = document.createElement('span');
+            label.className = 'remote-cursor-label';
+            label.textContent = nickname;
+            label.style.backgroundColor = color;
+            
+            element.appendChild(label);
+            container.appendChild(element);
+            return element;
+        }
+
+        /**
+         * [NEW] 隠しミラー要素を使って、textarea内のカーソルのX, Y座標を計算する
+         * (textareaのcontent-boxの左上を(0,0)とした相対座標を返す)
+         */
+        function getTextareaCaretPosition(textarea, position) {
+            // ... (提供された安定したロジックをそのまま使用) ...
+            const mirror = document.createElement('div');
+            const style = window.getComputedStyle(textarea);
+            const textareaRect = textarea.getBoundingClientRect();
+
+            const styleProperties = ['fontFamily', 'fontSize', 'lineHeight', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'boxSizing'];
+            styleProperties.forEach(prop => {
+                mirror.style[prop] = style[prop];
+            });
+
+            mirror.style.whiteSpace = 'pre-wrap';
+            mirror.style.wordWrap = 'break-word';
+            mirror.style.position = 'absolute';
+            mirror.style.visibility = 'hidden';
+            mirror.style.overflow = 'auto'; 
+            mirror.style.width = textareaRect.width + 'px';
+
+            const content = textarea.value;
+            const preText = content.substring(0, position);
+            const postText = content.substring(position); 
+
+            const pre = document.createElement('span');
+            pre.textContent = preText;
+            
+            const caretSpan = document.createElement('span');
+            caretSpan.textContent = '\u200B'; 
+
+            const post = document.createElement('span');
+            post.textContent = postText;
+
+            mirror.appendChild(pre);
+            mirror.appendChild(caretSpan);
+            mirror.appendChild(post);
+
+            document.body.appendChild(mirror); 
+            
+            mirror.scrollTop = textarea.scrollTop;
+            mirror.scrollLeft = textarea.scrollLeft;
+
+            const caretRect = caretSpan.getBoundingClientRect();
+            const mirrorRect = mirror.getBoundingClientRect();
+
+            const paddingLeft = parseFloat(style.paddingLeft);
+            const x = (caretRect.left - mirrorRect.left) + mirror.scrollLeft - paddingLeft;
+            
+            const paddingTop = parseFloat(style.paddingTop);
+            const y = (caretRect.top - mirrorRect.top) + mirror.scrollTop - paddingTop;
+            
+            document.body.removeChild(mirror);
+
+            return { x: x, y: y, height: caretRect.height }; 
+        }
+
+        /**
+         * 受信したカーソル位置を画面に表示/更新するメイン関数
+         */
+        function updateRemoteCursor(data) {
+            const { room, nickname, isText, position, tool, penColor, penWidth } = data;
+            const color = getColorForNickname(nickname);
+            
+            let mouseContainer, textContainer, textarea;
+
+            if (room === 'free') {
+                mouseContainer = drawingMouseCursorContainer;
+            } else if (room === 'novel') {
+                mouseContainer = novelMouseCursorContainer;
+                textContainer = novelTextCursorContainer;
+                textarea = novelTextarea;
+            } else if (room === 'music') {
+                mouseContainer = lyricsMouseCursorContainer;
+                textContainer = lyricsTextCursorContainer;
+                textarea = lyricsTextarea;
+            }
+            
+            const mouseId = `mouse-cursor-${nickname}`;
+            const textId = `text-cursor-${nickname}`;
+
+            if (!remoteCursors.has(nickname)) {
+                const mouseCursor = createCursorElement(mouseId, mouseContainer, nickname, color, 'mouse-cursor');
+                const textCursor = (room === 'novel' || room === 'music') ? createCursorElement(textId, textContainer, nickname, color, 'text-cursor') : null;
+                remoteCursors.set(nickname, { mouseCursor, textCursor });
+            }
+            
+            const { mouseCursor, textCursor } = remoteCursors.get(nickname);
+            
+            // カーソル要素を現在のルームのコンテナに移動させる
+            if (mouseCursor.parentElement !== mouseContainer) {
+                 mouseContainer.appendChild(mouseCursor);
+            }
+            if (textCursor && textCursor.parentElement !== textContainer) {
+                 textContainer.appendChild(textCursor);
+            }
+
+            // ----------------------------------------------------
+            // テキストカーソル（小説/音楽ルーム）の更新
+            // ----------------------------------------------------
+            if (isText && textCursor && typeof position === 'number') {
+                mouseCursor.style.display = 'none'; // テキストカーソル有効時はマウス非表示
+
+                if (position === -1) {
+                    textCursor.style.display = 'none';
+                    return;
+                }
+                
+                // 座標計算
+                const safePosition = Math.min(position, textarea.value.length);
+                const coords = getTextareaCaretPosition(textarea, safePosition); 
+                
+                if (coords) {
+                    textCursor.style.left = `${coords.x}px`;
+                    textCursor.style.top = `${coords.y}px`;
+                    textCursor.style.backgroundColor = color;
+                    textCursor.style.height = `${coords.height}px`; // 行の高さに合わせる
+                    textCursor.style.display = 'block';
+                    
+                    textCursor.querySelector('.remote-cursor-label').style.backgroundColor = color;
+                } else {
+                    textCursor.style.display = 'none';
+                }
+            } 
+            
+            // ----------------------------------------------------
+            // マウスカーソル（全ルーム）の更新
+            // ----------------------------------------------------
+            else if (!isText) { 
+                if (textCursor) textCursor.style.display = 'none'; // マウスカーソル有効時はテキスト非表示
+                
+                if (position && position.x !== undefined && position.y !== undefined && position.x >= 0) {
+                    
+                    mouseCursor.style.color = color;
+                    mouseCursor.style.left = `${position.x}px`;
+                    mouseCursor.style.top = `${position.y}px`;
+                    mouseCursor.style.display = 'block';
+
+                    if (room === 'free') {
+                        // 描画ルーム: ブラシサイズ表示
+                        const size = penWidth || 10;
+                        mouseCursor.style.backgroundColor = 'transparent';
+                        mouseCursor.style.border = `2px solid ${tool === 'pen' ? penColor : '#FF0000'}`;
+                        mouseCursor.style.width = `${size}px`;
+                        mouseCursor.style.height = `${size}px`;
+                        mouseCursor.style.margin = `-${size / 2}px 0 0 -${size / 2}px`;
+                        mouseCursor.classList.add('draw-tool');
+                    } else {
+                        // テキストルーム (マウスモード): 標準ポインター
+                        mouseCursor.style.backgroundColor = 'transparent';
+                        mouseCursor.style.border = `6px 0 6px 8px solid ${color}`;
+                        mouseCursor.style.width = '0';
+                        mouseCursor.style.height = '0';
+                        mouseCursor.style.margin = '0';
+                        mouseCursor.classList.remove('draw-tool');
+                    }
+                    mouseCursor.querySelector('.remote-cursor-label').style.backgroundColor = color;
+                } else {
+                    // 座標がない、または-1,-1の場合は非表示
+                    mouseCursor.style.display = 'none';
+                }
+            }
+        }
+        
+        function sendCursorUpdate(room, data = {}) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'cursor_update',
+                    room: room,
+                    nickname: nickname,
+                    tool: currentTool,
+                    penColor: currentPenColor,
+                    penWidth: currentPenWidth,
+                    ...data 
+                }));
+            }
+        }
+
+        function sendTextUpdate(room, textarea) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                 // 音楽ルームの場合、URLと歌詞を結合して送信
+                let contentToSend = textarea.value;
+                if (room === 'music') {
+                    const urlContent = musicUrls.map(url => `[URL: ${url}]`).join('\n') + '\n\n';
+                    contentToSend = urlContent + `[歌詞/アイデア]:\n` + textarea.value;
+                }
+
+                ws.send(JSON.stringify({
+                    type: 'content_update',
+                    room: room,
+                    nickname: nickname,
+                    content: contentToSend 
+                }));
+            }
+        }
+
+
+        // =========================================================
+        // ★★★ 3. イベントリスナー (追従とコンテンツの制御) ★★★
+        // =========================================================
+
+        function setupGlobalMouseTracking() {
+            // テキストエリア外のエリアでのマウスムーブメントのトラッキング (isText: false)
+            const trackMouse = (room, element) => {
+                element.addEventListener('mousemove', (e) => {
+                    if (currentRoom === room) {
+                        const rect = element.getBoundingClientRect();
+                        // カーソルコンテナの左上を (0,0) とした相対座標を送信
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        sendCursorUpdate(room, { isText: false, position: { x: x, y: y } });
+                    }
+                });
+                // マウスアウトで座標をクリア
+                element.addEventListener('mouseout', () => {
+                     if (currentRoom === room) {
+                         sendCursorUpdate(room, { isText: false, position: { x: -1, y: -1 } });
+                     }
+                });
+            };
+
+            // フリールーム全体をトラック
+            trackMouse('free', drawingRoomContent);
+            // 小説/音楽ルームの親要素全体をトラック
+            trackMouse('novel', novelRoomContent);
+            trackMouse('music', musicRoomContent); 
+        }
+
+        function setupTextareaTracking(textarea, room) {
+            
+            // 【修正点】テキストエリア内でのマウスムーブ：マウスカーソルを追従させる (isText: false)
+            textarea.addEventListener('mousemove', (e) => {
+                 if (currentRoom === room) {
+                    const rect = textarea.getBoundingClientRect();
+                    // カーソルコンテナはテキストエリアのパディング(15px)の場所から始まる
+                    // e.clientX - rect.left は padding-left の手前から始まるので、15pxを加算してコンテナ内の相対座標にする
+                    const x = (e.clientX - rect.left) + 15; 
+                    const y = (e.clientY - rect.top) + 15;
+                    sendCursorUpdate(room, { isText: false, position: { x: x, y: y } });
+                 }
+            });
+
+            // 文字入力時：コンテンツ更新を**即時**送信し、縦線カーソル位置も送信 (isText: true)
+            textarea.addEventListener('input', () => {
+                sendTextUpdate(room, textarea); 
+                sendCursorUpdate(room, { isText: true, position: textarea.selectionStart }); 
             });
             
-            textarea.addEventListener('mouseover', updateCursorPosition);
+            // クリック、キーアップ、スクロール時：縦線カーソル位置のみ送信 (isText: true)
+            textarea.addEventListener('click', () => sendCursorUpdate(room, { isText: true, position: textarea.selectionStart }));
+            textarea.addEventListener('keyup', (e) => {
+                sendCursorUpdate(room, { isText: true, position: textarea.selectionStart });
+            });
+            textarea.addEventListener('scroll', () => sendCursorUpdate(room, { isText: true, position: textarea.selectionStart })); 
+            
+            // マウスアウト時、カーソル表示を解除
+            textarea.addEventListener('mouseout', () => {
+                // 1. マウスカーソルを非表示にする (x:-1, y:-1)
+                sendCursorUpdate(room, { isText: false, position: { x: -1, y: -1 } }); 
+                // 2. テキストカーソルも非表示にする (position: -1)
+                sendCursorUpdate(room, { isText: true, position: -1 });
+            });
         }
 
         setupTextareaTracking(novelTextarea, 'novel');
         setupTextareaTracking(lyricsTextarea, 'music');
 
 
-        // --- 作品公開イベント ---
-        publishButton.addEventListener('click', async () => {
-            const title = workTitleInput.value.trim();
-            let content = '';
-            let contentType = 'text'; 
+        // =========================================================
+        // ★★★ 4. 各ルームの個別ロジック (描画/音楽URL) ★★★
+        // =========================================================
+        
+        // --- 描画ロジック ---
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.lineCap = 'round';
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height); 
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
 
+        function setTool(tool) {
+            currentTool = tool;
+            penToolButton.classList.remove('active');
+            eraserToolButton.classList.remove('active');
+            if (tool === 'pen') {
+                penToolButton.classList.add('active');
+                ctx.globalCompositeOperation = 'source-over'; 
+            } else if (tool === 'eraser') {
+                eraserToolButton.classList.add('active');
+                ctx.globalCompositeOperation = 'destination-out'; 
+            }
+            // ツール変更時にもカーソル情報を送信
+            sendCursorUpdate('free', { isText: false, position: { x: lastX, y: lastY } });
+        }
+
+        penToolButton.addEventListener('click', () => setTool('pen'));
+        eraserToolButton.addEventListener('click', () => setTool('eraser'));
+        clearCanvasButton.addEventListener('click', () => {
+             ctx.fillStyle = '#fff';
+             ctx.fillRect(0, 0, canvas.width, canvas.height);
+             if (ws && ws.readyState === WebSocket.OPEN) {
+                 ws.send(JSON.stringify({ type: 'clear', room: 'free' }));
+             }
+        });
+        setTool('pen'); 
+
+        function drawLine(x0, y0, x1, y1, color, width, tool) {
+            const originalCompositeOperation = ctx.globalCompositeOperation;
+            const originalStrokeStyle = ctx.strokeStyle;
+            const originalLineWidth = ctx.lineWidth;
+            
+            ctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
+            
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.moveTo(x0, y0);
+            ctx.lineTo(x1, y1);
+            ctx.stroke();
+            
+            ctx.strokeStyle = originalStrokeStyle;
+            ctx.lineWidth = originalLineWidth;
+            ctx.globalCompositeOperation = originalCompositeOperation;
+        }
+
+        function draw(e) {
+            if (currentRoom !== 'free') return;
+            const [currentX, currentY] = [e.offsetX, e.offsetY];
+
+            if (!isDrawing) {
+                 [lastX, lastY] = [currentX, currentY];
+                 return;
+            }
+            
+            const strokeColor = currentTool === 'eraser' ? 'rgba(0,0,0,1)' : currentPenColor; 
+            
+            // ローカル描画
+            drawLine(lastX, lastY, currentX, currentY, strokeColor, currentPenWidth, currentTool);
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                // サーバーに描画データを送信
+                ws.send(JSON.stringify({
+                    type: 'draw',
+                    room: 'free',
+                    x0: lastX, y0: lastY, x1: currentX, y1: currentY, 
+                    color: strokeColor, width: currentPenWidth, tool: currentTool
+                }));
+            }
+            
+            [lastX, lastY] = [currentX, currentY];
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (currentRoom !== 'free') return;
+            isDrawing = true;
+            [lastX, lastY] = [e.offsetX, e.offsetY];
+            ctx.globalCompositeOperation = currentTool === 'pen' ? 'source-over' : 'destination-out'; 
+        });
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', () => isDrawing = false);
+        canvas.addEventListener('mouseout', () => isDrawing = false);
+        
+        penColorInput.addEventListener('change', (e) => { 
+            currentPenColor = e.target.value; 
+            // 描画ツールカーソルの色を更新するためにカーソル情報を再送信
+            sendCursorUpdate('free', { isText: false, position: { x: lastX, y: lastY }, penColor: currentPenColor });
+        });
+        penWidthInput.addEventListener('input', (e) => {
+            currentPenWidth = parseInt(e.target.value);
+            widthValueSpan.textContent = currentPenWidth;
+            // 描画ツールカーソルのサイズを更新するためにカーソル情報を再送信
+            sendCursorUpdate('free', { isText: false, position: { x: lastX, y: lastY }, penWidth: currentPenWidth });
+        });
+
+        function handleReceivedDrawing(data) {
+             if (data.type === 'clear') {
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                return;
+            }
+            if (data.type === 'draw') {
+                drawLine(data.x0, data.y0, data.x1, data.y1, data.color, data.width, data.tool);
+            }
+        }
+        
+        function redrawCanvas(history) {
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            if (history) {
+                 history.forEach(line => {
+                    drawLine(line.x0, line.y0, line.x1, line.y1, line.color, line.width, line.tool);
+                });
+            }
+        }
+        
+        // --- 音楽ルーム (URL並べ替え) ロジック ---
+        
+        function renderMusicUrls() {
+            musicUrlsList.innerHTML = '';
+            musicUrls.forEach((url, index) => {
+                const li = document.createElement('li');
+                li.draggable = true;
+                li.dataset.index = index;
+                li.textContent = url.length > 50 ? url.substring(0, 50) + '...' : url;
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'remove-url';
+                removeBtn.textContent = '削除';
+                removeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // ドラッグとバッティングしないように
+                    removeMusicUrl(index);
+                });
+                
+                li.appendChild(removeBtn);
+                musicUrlsList.appendChild(li);
+            });
+            setupDragAndDrop();
+        }
+
+        addMusicUrlButton.addEventListener('click', () => {
+            const url = newMusicUrlInput.value.trim();
+            if (url) {
+                musicUrls.push(url);
+                newMusicUrlInput.value = '';
+                sendTextUpdate('music', lyricsTextarea); // URLリスト変更はテキスト更新として送信
+            }
+        });
+        
+        function removeMusicUrl(index) {
+            musicUrls.splice(index, 1);
+            sendTextUpdate('music', lyricsTextarea); // URLリスト変更はテキスト更新として送信
+        }
+        
+        function setupDragAndDrop() {
+            let dragStartIndex;
+
+            musicUrlsList.querySelectorAll('li').forEach(item => {
+                item.addEventListener('dragstart', (e) => {
+                    dragStartIndex = parseInt(item.dataset.index);
+                    e.dataTransfer.setData('text/plain', dragStartIndex);
+                    setTimeout(() => item.classList.add('dragging'), 0);
+                });
+
+                item.addEventListener('dragend', () => item.classList.remove('dragging'));
+
+                item.addEventListener('dragover', (e) => {
+                    e.preventDefault(); 
+                    const draggingItem = document.querySelector('.dragging');
+                    if (draggingItem && draggingItem !== item) {
+                        const boundingBox = item.getBoundingClientRect();
+                        const offset = boundingBox.y + boundingBox.height / 2;
+                        
+                        if (e.clientY > offset) {
+                            musicUrlsList.insertBefore(draggingItem, item.nextSibling);
+                        } else {
+                            musicUrlsList.insertBefore(draggingItem, item);
+                        }
+                    }
+                });
+
+                musicUrlsList.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    
+                    const newUrls = Array.from(musicUrlsList.children).map(li => {
+                        // 削除ボタンのテキストを除外してURLを抽出
+                        return li.textContent.replace(/削除$/, '').trim();
+                    });
+                    
+                    musicUrls = newUrls;
+                    sendTextUpdate('music', lyricsTextarea); // ドラッグ＆ドロップ後のリスト変更も送信
+                });
+            });
+        }
+        
+        // =========================================================
+        // ★★★ 5. 共通機能：データの保存と読み込み (サーバーとの通信) ★★★
+        // =========================================================
+        
+        function getCurrentRoom() { return currentRoom; }
+
+        async function saveTextData(room, content) {
+            // 仮のサーバーパス
+            const res = await fetch('/api/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ room: room, content: content })
+            });
+            if (res.ok) { console.log(`${room}のデータを保存しました。`); } else { console.error(`${room}のデータの保存に失敗しました。`); }
+        }
+
+
+        // ----------------------------------------------------
+        // イベントリスナー (保存・公開)
+        // ----------------------------------------------------
+
+        saveButton.addEventListener('click', async () => {
+            const room = getCurrentRoom();
+            
+            let contentToSave = '';
+
+            if (room === 'free') {
+                 // サーバーは履歴で管理しているため、クライアント側の一時保存ボタンはテキストルームのみ有効にする
+                publishStatus.textContent = '描画ルームのデータは描画と同時に自動保存されます。';
+                publishStatus.style.color = 'gray';
+                setTimeout(() => { publishStatus.textContent = ''; }, 3000);
+                return;
+            } else if (room === 'novel') {
+                contentToSave = novelTextarea.value;
+            } else if (room === 'music') {
+                // URLと歌詞を結合して保存
+                const urlContent = musicUrls.map(url => `[URL: ${url}]`).join('\n') + '\n\n';
+                contentToSave = urlContent + `[歌詞/アイデア]:\n` + lyricsTextarea.value;
+            }
+            
+            if (contentToSave) {
+                 await saveTextData(room, contentToSave);
+                 publishStatus.textContent = '一時保存しました。';
+                 publishStatus.style.color = '#2196F3';
+                 setTimeout(() => { publishStatus.textContent = ''; }, 3000);
+            }
+        });
+
+        publishButton.addEventListener('click', async () => {
+            const room = getCurrentRoom();
+            const title = workTitleInput.value.trim();
+            
+            let content = '';
+            let contentType = '';
+            
             if (!title) {
                 publishStatus.textContent = 'タイトルを入力してください。';
                 publishStatus.style.color = 'red';
                 return;
             }
 
-            if (currentRoom === 'free') {
-                content = drawingCanvas.toDataURL('image/png');
+            if (room === 'free') {
+                content = canvas.toDataURL('image/png');
                 contentType = 'image';
-            } else if (currentRoom === 'novel') {
+            } else if (room === 'novel') {
                 content = `作者: ${nickname}\n\n${novelTextarea.value}`;
                 contentType = 'text';
-            } else if (currentRoom === 'music') {
+            } else if (room === 'music') {
                 const urlLines = musicUrls.map(url => `[楽譜/URL]: ${url}`).join('\n');
                 const lyrics = lyricsTextarea.value;
-                content = `作者: ${nickname}\n\n[URL一覧]\n${urlLines}\n\n[歌詞/アイデア]:\n${lyrics}`;
+                content = `作者: ${nickname}\n${urlLines}\n\n[歌詞/アイデア]:\n${lyrics}`;
                 contentType = 'text'; 
             }
 
+            // API: /api/publish
             const res = await fetch('/api/publish', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    title, 
-                    room: currentRoom, 
-                    content, 
-                    content_type: contentType,
-                    nickname: nickname 
-                }) 
+                body: JSON.stringify({ title, room, content, content_type: contentType, nickname: nickname }) 
             });
 
             if (res.ok) {
@@ -1068,9 +1187,9 @@
             } else {
                 publishStatus.textContent = '作品の公開に失敗しました。';
                 publishStatus.style.color = 'red';
-                console.error('Publish failed:', await res.text());
             }
         });
+
     </script>
 </body>
 </html>
